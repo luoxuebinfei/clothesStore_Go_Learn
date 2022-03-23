@@ -25,6 +25,8 @@ func main() {
 		})
 	})
 	r.POST("/register", register)
+	r.POST("/login", login)
+	r.POST("/reset_Password", resetPassword)
 	err := r.Run(":8100")
 	if err != nil {
 		return
@@ -103,14 +105,93 @@ func register(c *gin.Context) {
 			return
 		}
 		delete(Code, email) //使用后销毁验证码
+		c.Header("Authorization", fmt.Sprintf("Bearer %s", token))
 		c.JSON(200, gin.H{
 			"code": http.StatusOK,
 			"msg":  "注册成功！",
 			"data": gin.H{
-				"token": token,
+				"userinfo": username,
 			},
 		})
 		return
+	}
+
+}
+
+//登录函数
+func login(c *gin.Context) {
+	d := make(map[string]interface{})
+	c.BindJSON(&d)
+	//println(d["email"].(string))
+	paw := AesEncrypt(d["paw"].(string))
+	ok, res := DB.QueryUser(d["email"].(string), paw)
+	if ok == 0 {
+		id, err := strconv.ParseInt(res[0]["id"], 10, 64)
+		if err != nil {
+			fmt.Println(err)
+			return
+		}
+		username := res[0]["name"]
+		token, err := GenToken(id, username, res[0]["email"])
+		if err != nil {
+			fmt.Println("生成token失败", err)
+		}
+		c.Header("Authorization", fmt.Sprintf("Bearer %s", token))
+		c.JSON(200, gin.H{
+			"code": 200,
+			"msg":  "登录成功！",
+			"data": gin.H{
+				"userinfo": username,
+			},
+		})
+	} else if ok == -1 {
+		c.JSON(200, gin.H{
+			"code": 2001,
+			"msg":  "密码错误！请检查输入",
+			"data": "",
+		})
+	} else {
+		c.JSON(200, gin.H{
+			"code": 2001,
+			"msg":  "邮箱账号不存在，请检查输入或注册新账号",
+			"data": "",
+		})
+	}
+}
+
+//重置密码函数
+func resetPassword(c *gin.Context) {
+	d := make(map[string]interface{})
+	c.BindJSON(&d)
+	nowTime := time.Now().Unix()
+	email := d["email"].(string)
+	code, _ := strconv.Atoi(d["code"].(string))
+	newPaw := AesEncrypt(d["password"].(string))
+	if Code[email].CodeNum != code || nowTime-Code[email].CodeTime > 600 {
+		//验证码错误
+		c.JSON(200, gin.H{
+			"code": 2001,
+			"msg":  "验证码错误或已过期，请重新获取输入",
+			"data": "",
+		})
+		return
+	} else {
+		ok := DB.ChangePaw(email, newPaw)
+		if ok == -1 {
+			c.JSON(200, gin.H{
+				"code": 2001,
+				"msg":  "用户邮箱不存在！",
+				"data": "",
+			})
+			return
+		} else {
+			c.JSON(200, gin.H{
+				"code": 200,
+				"msg":  "重置密码成功！",
+				"data": "data",
+			})
+			return
+		}
 	}
 
 }

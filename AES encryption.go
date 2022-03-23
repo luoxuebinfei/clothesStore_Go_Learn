@@ -30,6 +30,8 @@ func AesEncrypt(orig string) string {
 	blockMode.CryptBlocks(cryted, origData)
 	return base64.StdEncoding.EncodeToString(cryted)
 }
+
+// AesDecrypt 解码
 func AesDecrypt(cryted string) string {
 	// 转成字节数组
 	crytedByte, _ := base64.StdEncoding.DecodeString(cryted)
