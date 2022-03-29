@@ -27,6 +27,13 @@ func main() {
 	r.POST("/register", register)
 	r.POST("/login", login)
 	r.POST("/reset_Password", resetPassword)
+	r.GET("/cart_index", JWTAuthMiddleware(), cartIndex)
+	r.POST("/delete_cart_shop", JWTAuthMiddleware(), deleteCart)
+	r.GET("get_address", JWTAuthMiddleware(), getADDress)
+	r.POST("add_address", JWTAuthMiddleware(), addNewADDress)
+	r.POST("delete_address", JWTAuthMiddleware(), deleteADDress)
+	r.POST("update_address", JWTAuthMiddleware(), updateADDress)
+	r.POST("change_addressDefault", JWTAuthMiddleware(), changeADDressDefault)
 	err := r.Run(":8100")
 	if err != nil {
 		return
@@ -59,7 +66,7 @@ func Cors() gin.HandlerFunc {
 //注册函数
 func register(c *gin.Context) {
 	dl := make(map[string]interface{})
-	now_time := time.Now().Unix()
+	nowTime := time.Now().Unix()
 	err := c.BindJSON(&dl)
 	if err != nil {
 		c.JSON(200, gin.H{
@@ -73,7 +80,7 @@ func register(c *gin.Context) {
 	paw := dl["password"].(string)
 	username := dl["username"].(string)
 	code, _ := strconv.Atoi(dl["code"].(string))
-	if (code != Code[email].CodeNum) || (now_time-Code[email].CodeTime) > 600 {
+	if (code != Code[email].CodeNum) || (nowTime-Code[email].CodeTime) > 600 {
 		c.JSON(200, gin.H{
 			"code": 2001,
 			"msg":  "验证码错误或已过期，请重新获取输入！",
@@ -122,6 +129,13 @@ func register(c *gin.Context) {
 func login(c *gin.Context) {
 	d := make(map[string]interface{})
 	c.BindJSON(&d)
+	if len(d) == 0 {
+		c.JSON(200, gin.H{
+			"code": 2002,
+			"msg":  "请求参数不正确",
+		})
+		return
+	}
 	//println(d["email"].(string))
 	paw := AesEncrypt(d["paw"].(string))
 	ok, res := DB.QueryUser(d["email"].(string), paw)
@@ -192,6 +206,165 @@ func resetPassword(c *gin.Context) {
 			})
 			return
 		}
+	}
+
+}
+
+//获取购物车数据
+func cartIndex(c *gin.Context) {
+	uid, _ := c.Get("uid")
+	data := DB.CartInfo(strconv.FormatInt(uid.(int64), 10))
+	c.JSON(200, gin.H{
+		"code": 200,
+		"msg":  "",
+		"data": data,
+	})
+}
+
+//删除购物车中商品
+func deleteCart(c *gin.Context) {
+	d := make(map[string]interface{})
+	c.BindJSON(&d)
+	uid, _ := c.Get("uid")
+	for _, value := range d["data"].([]interface{}) {
+		skuId := value.(map[string]interface{})["shopId"]
+		ok := DB.DeleteCart(skuId.(string), strconv.FormatInt(uid.(int64), 10))
+		if ok == -1 {
+			c.JSON(200, gin.H{
+				"code": 2001,
+				"msg":  "删除商品出现错误",
+			})
+		}
+	}
+	c.JSON(200, gin.H{
+		"code": 200,
+		"msg":  "成功删除",
+	})
+}
+
+//获取收货地址
+func getADDress(c *gin.Context) {
+	uid, _ := c.Get("uid")
+	res := DB.GetAddress(strconv.FormatInt(uid.(int64), 10))
+	c.JSON(200, gin.H{
+		"cood": 200,
+		"msg":  "",
+		"data": res,
+	})
+	return
+}
+
+//新增收货地址
+func addNewADDress(c *gin.Context) {
+	d := make(map[string]interface{})
+	c.BindJSON(&d)
+	if len(d) == 0 || len(d) != 4 {
+		c.JSON(200, gin.H{
+			"code": 2001,
+			"mag":  "请求参数不足",
+		})
+		return
+	}
+	uid, _ := c.Get("uid")
+	name := d["name"].(string)
+	phone := d["phone"].(string)
+	address := d["address"].(string)
+	isDefault := d["is_default"].(string)
+	ok := DB.AddNewAddress(strconv.FormatInt(uid.(int64), 10), name, phone, address, isDefault)
+	if ok {
+		c.JSON(200, gin.H{
+			"code": 200,
+			"msg":  "添加新地址成功",
+		})
+		return
+	} else {
+		c.JSON(200, gin.H{
+			"code": 202,
+			"msg":  "添加新地址失败",
+		})
+		return
+	}
+}
+
+//删除收货地址
+func deleteADDress(c *gin.Context) {
+	d := make(map[string]interface{})
+	c.BindJSON(&d)
+	if len(d) == 0 || len(d) != 1 {
+		c.JSON(200, gin.H{
+			"code": 2001,
+			"mag":  "请求参数不足",
+		})
+		return
+	}
+	uid, _ := c.Get("uid")
+	id := d["id"].(string)
+	ok := DB.DeleteAddress(id, strconv.FormatInt(uid.(int64), 10))
+	if ok {
+		c.JSON(200, gin.H{
+			"code": 200,
+			"msg":  "删除地址成功",
+		})
+		return
+	} else {
+		c.JSON(200, gin.H{
+			"code": 2001,
+			"msg":  "删除地址失败",
+		})
+		return
+	}
+}
+
+//更新收货地址
+func updateADDress(c *gin.Context) {
+	d := make(map[string]interface{})
+	c.BindJSON(&d)
+	if len(d) == 0 || len(d) != 5 {
+		c.JSON(200, gin.H{
+			"code": 2001,
+			"mag":  "请求参数不足",
+		})
+		return
+	}
+	uid, _ := c.Get("uid")
+	id := d["id"].(string)
+	name := d["name"].(string)
+	phone := d["phone"].(string)
+	address := d["address"].(string)
+	isDefault := d["is_default"].(string)
+	ok := DB.UpdateAddress(id, strconv.FormatInt(uid.(int64), 10), name, phone, address, isDefault)
+	if ok {
+		c.JSON(200, gin.H{
+			"code": 200,
+			"msg":  "更新地址成功",
+		})
+		return
+	} else {
+		c.JSON(200, gin.H{
+			"code": 202,
+			"msg":  "更新地址失败",
+		})
+		return
+	}
+}
+
+//更换默认收货地址
+func changeADDressDefault(c *gin.Context) {
+	d := make(map[string]interface{})
+	c.BindJSON(&d)
+	uid, _ := c.Get("uid")
+	id := d["id"].(string)
+	ok := DB.ChangeDefault(id, strconv.FormatInt(uid.(int64), 10))
+	if ok {
+		c.JSON(200, gin.H{
+			"code": 200,
+			"msg":  "",
+		})
+	} else {
+		c.JSON(200, gin.H{
+			"code": 2001,
+			"msg":  "请求参数与数据库不匹配",
+		})
 	}
 
 }
