@@ -82,14 +82,14 @@ func QueryUser(email string, paw string) (int, []map[string]string) {
 	}
 }
 
-func ChangePaw(email string, new_paw string) int {
+func ChangePaw(email string, newPaw string) int {
 	sqlStr := fmt.Sprintf("select * from user where email='%s'", email)
 	nowTime := time.Now().Format("2006-01-02 15:04:05")
 	res, ok := Query(sqlStr)
 	if ok {
 		//获取id
 		id := res[0]["id"]
-		sqlStr = fmt.Sprintf("update user set password='%s',update_at='%s' where id='%s'", new_paw, nowTime, id)
+		sqlStr = fmt.Sprintf("update user set password='%s',update_at='%s' where id='%s'", newPaw, nowTime, id)
 		Exec(sqlStr)
 		return 0
 	} else {

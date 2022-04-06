@@ -46,13 +46,11 @@ func DeleteAddress(id string, uid string) bool {
 	if err != nil {
 		return false
 	}
-	sqlStr = fmt.Sprintf("select * from user_address where uid='%s'", uid)
-	res, ok := Query(sqlStr)
-	if ok {
-		if len(res) == 1 {
-			sqlStr = fmt.Sprintf("update user_address set is_default=1 where id='%s'", res[0]["id"])
-			Exec(sqlStr)
-		}
+	sqlStr = fmt.Sprintf("select * from user_address where uid='%s' and is_default=1", uid)
+	_, ok := Query(sqlStr)
+	if !ok {
+		sqlStr = fmt.Sprintf("update user_address set is_default=1 where uid='%s' limit 1", uid)
+		Exec(sqlStr)
 	}
 	return true
 }

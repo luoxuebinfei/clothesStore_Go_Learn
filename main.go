@@ -14,6 +14,7 @@ import (
 func main() {
 	r := gin.Default()
 	r.Use(Cors()) //使用跨域处理
+	r.GET("/test", test1)
 	r.GET("/get_email_code", func(c *gin.Context) {
 		email := c.Query("email")
 		SendEmail(email)
@@ -28,12 +29,18 @@ func main() {
 	r.POST("/login", login)
 	r.POST("/reset_Password", resetPassword)
 	r.GET("/cart_index", JWTAuthMiddleware(), cartIndex)
+	r.POST("/update_cart_num", JWTAuthMiddleware(), updateCartNum)
+	r.POST("/change_cart_checked", JWTAuthMiddleware(), changeCheckedCart)
 	r.POST("/delete_cart_shop", JWTAuthMiddleware(), deleteCart)
-	r.GET("get_address", JWTAuthMiddleware(), getADDress)
-	r.POST("add_address", JWTAuthMiddleware(), addNewADDress)
-	r.POST("delete_address", JWTAuthMiddleware(), deleteADDress)
-	r.POST("update_address", JWTAuthMiddleware(), updateADDress)
-	r.POST("change_addressDefault", JWTAuthMiddleware(), changeADDressDefault)
+	r.GET("/get_address", JWTAuthMiddleware(), getADDress)
+	r.POST("/add_address", JWTAuthMiddleware(), addNewADDress)
+	r.POST("/delete_address", JWTAuthMiddleware(), deleteADDress)
+	r.POST("/update_address", JWTAuthMiddleware(), updateADDress)
+	r.POST("/change_addressDefault", JWTAuthMiddleware(), changeADDressDefault)
+	r.POST("/order", JWTAuthMiddleware(), order)
+	r.GET("/query_order", JWTAuthMiddleware(), queryOrder)
+	r.GET("/delete_order", JWTAuthMiddleware(), deleteOrder)
+	r.GET("/cancel_order", JWTAuthMiddleware(), cancelOrder)
 	err := r.Run(":8100")
 	if err != nil {
 		return
@@ -61,6 +68,15 @@ func Cors() gin.HandlerFunc {
 		}
 		c.Next()
 	}
+}
+
+func test1(c *gin.Context) {
+	w := DB.NewWorker(5, 5)
+	id, _ := w.NextID()
+	c.JSON(200, gin.H{
+		"data": id,
+	})
+
 }
 
 //注册函数
@@ -221,6 +237,55 @@ func cartIndex(c *gin.Context) {
 	})
 }
 
+//添加到购物车
+
+//更新购物车数量
+func updateCartNum(c *gin.Context) {
+	d := make(map[string]interface{})
+	c.BindJSON(&d)
+	skuId := d["skuId"].(string)
+	num := d["num"].(string)
+	uid, _ := c.Get("uid")
+	err := DB.UpdateCartNum(skuId, num, strconv.FormatInt(uid.(int64), 10))
+	if err != nil {
+		c.JSON(200, gin.H{
+			"code": 2001,
+			"msg":  err.Error(),
+		})
+		return
+	} else {
+		c.JSON(200, gin.H{
+			"code": 200,
+			"msg":  "",
+		})
+		return
+	}
+}
+
+//更新购物车商品选中状态
+func changeCheckedCart(c *gin.Context) {
+	d := make(map[string]interface{})
+	c.BindJSON(&d)
+	skulist := d["data"].([]interface{})
+	status := d["status"].(string)
+	uid, _ := c.Get("uid")
+	for _, i := range skulist {
+		err := DB.ChangeChecked(i.(string), status, strconv.FormatInt(uid.(int64), 10))
+		if err != nil {
+			c.JSON(200, gin.H{
+				"code": 2001,
+				"msg":  err.Error(),
+			})
+			return
+		}
+	}
+	c.JSON(200, gin.H{
+		"code": 200,
+		"msg":  "",
+	})
+	return
+}
+
 //删除购物车中商品
 func deleteCart(c *gin.Context) {
 	d := make(map[string]interface{})
@@ -247,7 +312,7 @@ func getADDress(c *gin.Context) {
 	uid, _ := c.Get("uid")
 	res := DB.GetAddress(strconv.FormatInt(uid.(int64), 10))
 	c.JSON(200, gin.H{
-		"cood": 200,
+		"code": 200,
 		"msg":  "",
 		"data": res,
 	})
@@ -367,4 +432,88 @@ func changeADDressDefault(c *gin.Context) {
 		})
 	}
 
+}
+
+//提交订单
+func order(c *gin.Context) {
+	d := make(map[string]interface{})
+	c.BindJSON(&d)
+	//fmt.Println(d["data"].(map[string]interface{})["data"])
+	uid, _ := c.Get("uid")
+	result, msg := DB.GenerateOrderSn(strconv.FormatInt(uid.(int64), 10), d)
+	if result == 1 {
+		c.JSON(200, gin.H{
+			"code": 200,
+			"mag":  "订单提交成功，请尽快付款！",
+		})
+	} else if result == -1 {
+		c.JSON(200, gin.H{
+			"code": 2001,
+			"msg":  "订单提交失败，请联系管理员！",
+		})
+	} else {
+		c.JSON(200, gin.H{
+			"code": 2002,
+			"mag":  msg,
+		})
+	}
+}
+
+//查询订单
+func queryOrder(c *gin.Context) {
+	//d := make(map[string]interface{})
+	//c.BindJSON(&d)
+	//orderSn := d["orderSn"].(string)
+	orderSn := c.Query("orderSn")
+	uid, _ := c.Get("uid")
+	ok, msg, result := DB.QueryOrderSn(orderSn, strconv.FormatInt(uid.(int64), 10))
+	if ok == 1 {
+		c.JSON(200, gin.H{
+			"code": 200,
+			"msg":  msg,
+			"data": result,
+		})
+	} else {
+		c.JSON(200, gin.H{
+			"code": 2001,
+			"msg":  msg,
+			"data": result,
+		})
+	}
+}
+
+//删除订单
+func deleteOrder(c *gin.Context) {
+	orderSn := c.Query("orderSn")
+	uid, _ := c.Get("uid")
+	msg := DB.DeleteOrderSn(orderSn, strconv.FormatInt(uid.(int64), 10))
+	if msg == "订单删除成功" {
+		c.JSON(200, gin.H{
+			"code": 200,
+			"msg":  msg,
+		})
+	} else {
+		c.JSON(200, gin.H{
+			"code": 2001,
+			"msg":  msg,
+		})
+	}
+}
+
+//取消订单
+func cancelOrder(c *gin.Context) {
+	orderSn := c.Query("orderSn")
+	uid, _ := c.Get("uid")
+	msg := DB.CancelOrder(orderSn, strconv.FormatInt(uid.(int64), 10))
+	if msg == "订单取消成功" {
+		c.JSON(200, gin.H{
+			"code": 200,
+			"msg":  msg,
+		})
+	} else {
+		c.JSON(200, gin.H{
+			"code": 2001,
+			"msg":  msg,
+		})
+	}
 }
