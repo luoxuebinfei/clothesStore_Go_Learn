@@ -2,6 +2,9 @@ package DB
 
 //数据库文件的通用函数
 
+// LastInsertId 最后一次插入的id
+var LastInsertId int64
+
 // Exec 增、删、改
 func Exec(SQL string) error {
 	ret, err := Db.Exec(SQL) //增、删、改就靠这一条命令就够了，很简单
@@ -9,7 +12,7 @@ func Exec(SQL string) error {
 		//fmt.Println(err)
 		return err
 	}
-	_, _ = ret.LastInsertId()
+	LastInsertId, _ = ret.LastInsertId()
 	//fmt.Println(insID)
 	//if strconv.FormatInt(insID,10) == "0"{
 	//	return errors.New("数据库中无此数据")

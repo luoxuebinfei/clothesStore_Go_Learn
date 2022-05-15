@@ -2,6 +2,7 @@ package DB
 
 import (
 	"database/sql"
+	"errors"
 	"fmt"
 	"time"
 	//"fmt"
@@ -82,6 +83,7 @@ func QueryUser(email string, paw string) (int, []map[string]string) {
 	}
 }
 
+// ChangePaw 重置密码
 func ChangePaw(email string, newPaw string) int {
 	sqlStr := fmt.Sprintf("select * from user where email='%s'", email)
 	nowTime := time.Now().Format("2006-01-02 15:04:05")
@@ -97,4 +99,76 @@ func ChangePaw(email string, newPaw string) int {
 		return -1
 	}
 	return 0
+}
+
+// UpdatePaw 更新密码
+func UpdatePaw(oldPass string, newPass string, uid string) error {
+	sqlStr := fmt.Sprintf("select * from user where id='%s'", uid)
+	res, ok := Query(sqlStr)
+	if ok {
+		if res[0]["password"] != oldPass {
+			return errors.New("原密码错误")
+		} else {
+			nowTime := time.Now().Format("2006-01-02 15:04:05")
+			sqlStr = fmt.Sprintf("update user set password = '%s',update_at='%s' where id='%s';", newPass, nowTime, uid)
+			err := Exec(sqlStr)
+			if err != nil {
+				return err
+			}
+			return nil
+		}
+	} else {
+		return errors.New("无此账号")
+	}
+}
+
+// AdminLogin 管理员登录
+func AdminLogin(email string, paw string) ([]map[string]string, error) {
+	if len(email) == 0 || len(paw) == 0 {
+		return nil, errors.New("参数不完整")
+	}
+	sqlStr := fmt.Sprintf("select a.id,a.username,a.email,a.password from admin_user a where a.email='%s'", email)
+	res, ok := Query(sqlStr)
+	if ok {
+		if res[0]["password"] != paw {
+			return nil, errors.New("密码错误")
+		}
+		return res, nil
+
+	} else {
+		return nil, errors.New("账号不存在")
+	}
+}
+
+func AdminGetAllUser(u string) []map[string]string {
+	var sqlStr string
+	if u == "1" {
+		//普通用户
+		sqlStr = fmt.Sprintf("select * from user;")
+	} else {
+		//管理员用户
+		sqlStr = fmt.Sprintf("select * from admin_user;")
+	}
+	res, ok := Query(sqlStr)
+	if ok {
+		return res
+	} else {
+		return nil
+	}
+}
+
+// AdminUpdate 管理员更新用户信息
+func AdminUpdate(id string, name string, email string, paw string, u string) error {
+	nowTime := time.Now().Format("2006-01-02 15:04-05")
+	var sqlStr string
+	if u == "1" {
+		sqlStr = fmt.Sprintf("update user set name='%s',email='%s',password='%s',update_at='%s' where id='%s'", name, email, paw, nowTime, id)
+	} else {
+		sqlStr = fmt.Sprintf("update admin_user set username='%s',email='%s',password='%s',update_time='%s' where id='%s'", name, email, paw, nowTime, id)
+	}
+	err := Exec(sqlStr)
+	if err != nil {
+		return err
+	}
+	return nil
 }

@@ -18,7 +18,7 @@ type CodeTime struct {
 }
 
 func init() {
-	go test()
+	go DestroyCode()
 	//var c = make(chan bool)
 	//<- c
 	//time.Sleep(5 * time.Second)
@@ -40,7 +40,13 @@ func SendEmail(email string) int {
 	// Seed, unlike the Rand.Seed method, is safe for concurrent use.
 	rand.Seed(time.Now().Unix())
 	// Intn returns, as an int, a non-negative pseudo-random number in [0,n)
-	num := rand.Intn(10000)
+	num := 9999
+	for {
+		num = rand.Intn(10000)
+		if num > 1000 {
+			break
+		}
+	}
 	Code[email] = CodeTime{
 		CodeNum:  num,
 		CodeTime: time.Now().Unix(),
@@ -59,7 +65,8 @@ func SendEmail(email string) int {
 	return num
 }
 
-func test() {
+// DestroyCode 每隔5分钟检查是否有超时的验证码进行删除
+func DestroyCode() {
 	c := cron.New()
 	err := c.AddFunc("@every 5m", func() {
 		for k, v := range Code {

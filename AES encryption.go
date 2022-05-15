@@ -11,6 +11,7 @@ import (
 
 var key string = "0sLaEkAQJGNd3w1bjYeNZa3gZvzkoIgI"
 
+// AesEncrypt 密码加密
 func AesEncrypt(orig string) string {
 	// 转成字节数组
 	origData := []byte(orig)

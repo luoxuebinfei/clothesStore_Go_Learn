@@ -1,6 +1,7 @@
 package DB
 
 import (
+	"errors"
 	"fmt"
 	"time"
 )
@@ -56,29 +57,32 @@ func DeleteAddress(id string, uid string) bool {
 }
 
 // UpdateAddress 更新地址
-func UpdateAddress(id string, uid string, name string, phone string, address string, isDefault string) bool {
+func UpdateAddress(id string, uid string, name string, phone string, address string, isDefault string) error {
 	nowTime := time.Now().Format("2006-01-02 15:04:05")
 	if isDefault == "1" {
 		//不是唯一地址且新增的地址为默认地址时，将原本的默认地址取消
 		if OnlyOneDefault(id, uid, true) == -1 {
-			return false
+			return errors.New("忘了是啥错误了")
 		}
 	} else if isDefault == "0" {
 		ok := OnlyOneDefault(id, uid, false)
 		if ok == 1 {
 			isDefault = "1"
 		} else if ok == -1 {
-			return false
+			return errors.New("检查默认地址唯一性时发生错误")
 		}
+	}
+	if len(id) == 0 || len(name) == 0 || len(phone) == 0 || len(address) == 0 {
+		return errors.New("请求参数不完整")
 	}
 	sqlStr := fmt.Sprintf("update user_address set name='%s',phone='%s',address='%s',is_default='%s',update_time='%s' where id='%s' and uid='%s'", name, phone, address, isDefault, nowTime, id, uid)
 	err := Exec(sqlStr)
 	if err != nil {
 		//fmt.Errorf("更新用户收货地址时发生错误：%s",err)
 		fmt.Println(err)
-		return false
+		return err
 	}
-	return true
+	return nil
 }
 
 // OnlyOneDefault 检测同uid默认选项的唯一性
@@ -111,17 +115,18 @@ func OnlyOneDefault(id string, uid string, isDefault bool) int {
 }
 
 // ChangeDefault 点击切换默认地址时使用
-func ChangeDefault(id string, uid string) bool {
+func ChangeDefault(id string, uid string) ([]map[string]string, error) {
 	ok := OnlyOneDefault(id, uid, true)
 	if ok == -1 {
-		return false
+		return nil, errors.New("检查地址默认唯一性时发生错误")
 	}
 	sqlStr := fmt.Sprintf("update user_address set is_default=1 where id='%s' and uid='%s'", id, uid)
 	err := Exec(sqlStr)
 	if err != nil {
 		//fmt.Errorf("切换默认地址时发生错误：%s",err)
 		//fmt.Println(err)
-		return false
+		return nil, errors.New("切换默认地址发生错误")
 	}
-	return true
+
+	return GetAddress(uid), nil
 }
